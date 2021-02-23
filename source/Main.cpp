@@ -636,6 +636,122 @@ int main()
 	glBindBuffer(GL_ARRAY_BUFFER,0);
 
 	Shader cube_shader("shaders\\cube_shader.vs", "shaders\\cube_shader.fs");
+	
+	unsigned int cube_color_vao;
+	glGenVertexArrays(1,&cube_color_vao);
+	glBindVertexArray(cube_color_vao);
+	
+	unsigned int cube_color_vbo;
+	glGenBuffers(1, &cube_color_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, cube_color_vbo);
+	float cube_color_vertices[36 * 3] =
+	{
+		//position (3f)    normal(3f)        texture(2f)
+		//positive z face
+		 -1.0f, 1.0f,  1.0f, 
+		  1.0f, 1.0f,  1.0f, 
+		  1.0f,-1.0f,  1.0f, 
+					   
+		 -1.0f, 1.0f,  1.0f, 
+		  1.0f,-1.0f,  1.0f, 
+		 -1.0f,-1.0f,  1.0f, 
+
+		//negative z face
+		 -1.0f, 1.0f, -1.0f, 
+		  1.0f,-1.0f, -1.0f, 
+		  1.0f, 1.0f, -1.0f, 
+
+		 -1.0f, 1.0f, -1.0f, 
+		 -1.0f,-1.0f, -1.0f, 
+		  1.0f,-1.0f, -1.0f, 
+
+		//positive x face
+		  1.0f, 1.0f, -1.0f, 
+		  1.0f, 1.0f,  1.0f, 
+		  1.0f,-1.0f,  1.0f, 
+		  			  
+		  1.0f, 1.0f, -1.0f, 
+		  1.0f,-1.0f,  1.0f, 
+		  1.0f,-1.0f, -1.0f, 
+
+		//negative x face
+		 -1.0f, 1.0f, -1.0f,
+		 -1.0f,-1.0f,  1.0f,
+		 -1.0f, 1.0f,  1.0f,
+		 
+		 -1.0f, 1.0f, -1.0f,
+		 -1.0f,-1.0f, -1.0f,
+		 -1.0f,-1.0f,  1.0f,
+
+		//positive y face
+       	  1.0f, 1.0f, -1.0f, 
+       	  1.0f, 1.0f,  1.0f, 
+         -1.0f, 1.0f,  1.0f, 
+       				  
+       	  1.0f, 1.0f, -1.0f, 
+         -1.0f, 1.0f,  1.0f, 
+         -1.0f, 1.0f, -1.0f, 
+
+		//negative y face
+		  1.0f, -1.0f, -1.0f,
+		 -1.0f, -1.0f,  1.0f,
+		  1.0f, -1.0f,  1.0f,
+		 			   
+		  1.0f, -1.0f, -1.0f,
+		 -1.0f, -1.0f, -1.0f,
+		 -1.0f, -1.0f,  1.0f,
+	};
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_color_vertices), cube_color_vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	Shader cube_red("shaders\\cube_color_shader.vs", "shaders\\cube_red.fs");
+	Shader cube_green("shaders\\cube_color_shader.vs", "shaders\\cube_green.fs");
+	Shader cube_blue("shaders\\cube_color_shader.vs", "shaders\\cube_blue.fs");
+	Shader cube_yellow("shaders\\cube_color_shader.vs", "shaders\\cube_yellow.fs");
+
+	unsigned int red = glGetUniformBlockIndex(cube_red.ID, "matrices");
+	unsigned int green = glGetUniformBlockIndex(cube_green.ID, "matrices");
+	unsigned int blue = glGetUniformBlockIndex(cube_blue.ID, "matrices");
+	unsigned int yellow = glGetUniformBlockIndex(cube_yellow.ID, "matrices");
+
+	glUniformBlockBinding(cube_red.ID, red, 0);
+	glUniformBlockBinding(cube_green.ID, green, 0);
+	glUniformBlockBinding(cube_blue.ID, blue, 0);
+	glUniformBlockBinding(cube_yellow.ID, yellow, 0);
+
+	unsigned int ubo_matrices;
+	glGenBuffers(1, &ubo_matrices);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, ubo_matrices);
+	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	glBindBufferRange(GL_UNIFORM_BUFFER, 0, ubo_matrices, 0, 2 * sizeof(glm::mat4));
+
+	cube_red.use();
+	glm::mat4 model(1.0f);
+	model = glm::translate(model, glm::vec3(3.0f, 0.0f, 0.0f));
+	cube_red.setMat4("model", model);
+
+	cube_green.use();
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, 3.0f, 0.0f));
+	cube_green.setMat4("model", model);
+
+	cube_blue.use();
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, -3.0f, 0.0f));
+	cube_blue.setMat4("model", model);
+
+	cube_yellow.use();
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(-3.0f, 0.0f, 0.0f));
+	cube_yellow.setMat4("model", model);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////START FRAME RENDERING/////////////////////////////////////////////////
@@ -648,7 +764,7 @@ int main()
 
 		processInput(window);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.25f, 0.25f, 0.25f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -657,20 +773,27 @@ int main()
 		float camX = sin((float)glfwGetTime()) * radius;
 		float camZ = cos((float)glfwGetTime()) * radius;
 		glm::mat4 view = glm::mat4(1.0f);
-		if (dynamic)
-		{
-			view = glm::lookAt(
-				glm::vec3(camX, camX * camZ, camZ),
-				//glm::vec3(0.0f, 0.0f, 3.0f),
-				glm::vec3(0.0f, 0.0f, 0.0f),
-				glm::vec3(0.0f, 1.0f, 0.0f)
-			);
-		}
-		else
-		{
-			glm::vec3 cameraPosPlusCameraFront = cameraPos + cameraFront;
-			view = glm::lookAt(cameraPos, cameraPosPlusCameraFront, cameraUp);
-		}
+		glm::vec3 cameraPosPlusCameraFront = cameraPos + cameraFront;
+		view = glm::lookAt(cameraPos, cameraPosPlusCameraFront, cameraUp);
+
+		glBindBuffer(GL_UNIFORM_BUFFER, ubo_matrices);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projection));
+		glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+		//colored_cubes
+		cube_red.use();
+		glBindVertexArray(cube_color_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		cube_green.use();
+		glBindVertexArray(cube_color_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		cube_blue.use();
+		glBindVertexArray(cube_color_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		cube_yellow.use();
+		glBindVertexArray(cube_color_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		glDepthMask(GL_FALSE);
 		skybox_shader.use();
@@ -758,14 +881,14 @@ int main()
 		glEnable(GL_STENCIL_TEST);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 		glStencilFunc(GL_ALWAYS, 1, 0xFF);
-		//backpack.Draw(backpackShader);
+		backpack.Draw(backpackShader);
 		model = glm::mat4(1.0f);
 		//glm::mat4 MVP(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 3.0f, 0.0f));
 		MVP = projection * view * model;
 		backpackShader.setMat4("modelToWorldTransform", model);
 		backpackShader.setMat4("transform", MVP);
-		//backpack.Draw(backpackShader);
+		backpack.Draw(backpackShader);
 		glStencilFunc(GL_NEVER, 1, 0xFF);
 
 		solidColor.use();
@@ -786,7 +909,7 @@ int main()
 		MVP = projection * view * model;
 		solidColor.setMat4("modelToWorldTransform", model);
 		solidColor.setMat4("transform", MVP);
-		//backpack.Draw(solidColor);
+		backpack.Draw(solidColor);
 		glStencilFunc(GL_ALWAYS, 1, 0xFF);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		glDisable(GL_STENCIL_TEST);
@@ -826,7 +949,7 @@ int main()
 		cube_shader.setInt("skybox", 0);
 
 		//draw cube
-		//glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 		//backpack
 		backpack.Draw(cube_shader);
 
@@ -923,14 +1046,14 @@ int main()
 		glEnable(GL_STENCIL_TEST);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 		glStencilFunc(GL_ALWAYS, 1, 0xFF);
-		//backpack.Draw(backpackShader);
+		backpack.Draw(backpackShader);
 		model = glm::mat4(1.0f);
 		//glm::mat4 MVP(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 3.0f, 0.0f));
 		MVP = projection * view * model;
 		backpackShader.setMat4("modelToWorldTransform", model);
 		backpackShader.setMat4("transform", MVP);
-		//backpack.Draw(backpackShader);
+		backpack.Draw(backpackShader);
 		glStencilFunc(GL_NEVER, 1, 0xFF);
 
 		solidColor.use();
@@ -951,7 +1074,7 @@ int main()
 		MVP = projection * view * model;
 		solidColor.setMat4("modelToWorldTransform", model);
 		solidColor.setMat4("transform", MVP);
-		//backpack.Draw(solidColor);
+		backpack.Draw(solidColor);
 		glStencilFunc(GL_ALWAYS, 1, 0xFF);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		glDisable(GL_STENCIL_TEST);
