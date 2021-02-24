@@ -18,6 +18,7 @@ public:
 	//constructor reads and builds the shader
 	Shader(const char* vertexPath, const char* fragmentPath);
 	Shader(const char* vertexPath, const char* geometry_shader, const char* fragmentPath);
+	Shader() {};
 	//use/activate/bind the shader
 	void use();
 	//utility uniform functions

@@ -10,11 +10,12 @@
 #include <iostream>
 #include <filesystem>
 #include <map>
+#include <random>
+#include <ctime>
 
 #include <Shader.h>
 #include <Camera.h>
-#include <Cube.h>
-#include <Light.h>
+#include <quad.h>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -29,18 +30,20 @@ void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id, GLenum s
 		type, severity, message);
 }
 
-constexpr float SCREEN_WIDTH = 1920;
-constexpr float SCREEN_HEIGHT = 1080;
-
-float lastMouseX = SCREEN_WIDTH / 2;
-float lastMouseY = SCREEN_HEIGHT / 2;
+constexpr float SCREEN_WIDTH = 600;
+constexpr float SCREEN_HEIGHT = 600;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-bool firstMouse = true;
+Quad paddle_one, paddle_two, ball;
 
-Camera camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT);
+glm::vec3 clear_color = glm::vec3(0.0f, 0.1f, 0.1f);
+float paddle_one_speed, paddle_two_speed;
+
+unsigned int rally = 0;
+bool rate_limit = false;
+double last_limit_time = 0.0;
 
 int main()
 {
@@ -53,6 +56,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	GLFWwindow* window = glfwCreateWindow((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Sage Learning OpenGL", NULL, NULL);
+	glfwSetWindowPos(window, 400, 180);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -65,7 +69,7 @@ int main()
 		printf("Something went wrong!\n");
 		exit(-1);
 	}
-	printf("OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
+	//printf("OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	glEnable(GL_DEBUG_OUTPUT);
@@ -107,35 +111,35 @@ int main()
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
+	////////////////////////////////////////////////////////////////INIT GAME///////////////////////////////////////////////////
+	paddle_two = Quad(
+		glm::vec3(0.0f, 1.0f, 0.0f), 
+		0.2f,
+		0.02f,
+		0.5f,
+		0.01f
+	);
 
-	Cube cube = Cube();
-	Light light = Light();
+	paddle_one = Quad(
+		glm::vec3(1.0f,1.0f,1.0f),
+		0.2f,
+		0.02f,
+		0.5f,
+		0.99f
+	);
 
-	Shader test_shader = Shader("shaders\\geometry_test.vs","shaders\\geometry_test.gs", "shaders\\geometry_test.fs");
-
-	unsigned int test_vao;
-	glGenVertexArrays(1, &test_vao);
-	glBindVertexArray(test_vao);
-
-	unsigned int test_vbo;
-	glGenBuffers(1, &test_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, test_vbo);
-
-	float test_verts[] =
-	{
-		0.5f, 0.5f, 1.0f, 0.0f, 0.0f,
-	   -0.5f, 0.5f, 0.0f, 1.0f, 0.0f,
-	   -0.5f,-0.5f, 0.0f, 0.0f, 1.0f,
-		0.5f,-0.5f, 1.0f, 1.0f, 0.0f
-	};
-	glBufferData(GL_ARRAY_BUFFER, sizeof(test_verts), test_verts, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(2 * sizeof(float)));
-
+	ball = Quad(
+		glm::vec3(1.0f, 1.0f, 1.0f),
+		0.03f,
+		0.03f,
+		0.5f,
+		0.5f
+	);
+	srand(static_cast <unsigned> (time(0)));
+	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+	glm::vec2 ball_speed = glm::vec2((r * 0.5) + 0.2f,(r2 * 0.5) + 0.2f);
+	last_limit_time = glfwGetTime();
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////START FRAME RENDERING/////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -147,12 +151,60 @@ int main()
 
 		processInput(window);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClearColor(0.1f, 0.0f, 0.0f, 1.0f);
+		glClearColor(0.0f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		/////////////////////////////////game logic//////////////////////////////
+		ball.x = std::clamp(ball.x, (ball.getWidth() / 2), 1.0f - (ball.getWidth() / 2));
+		if (ball.x >= 1.0f - (ball.getWidth() / 2) || ball.x <= (ball.getWidth() / 2))
+		{
+			ball_speed.x = -ball_speed.x;
+		}
+		ball_speed.x = std::clamp(ball_speed.x, -0.9f, 0.9f);
+		ball.x += ball_speed.x * deltaTime;
+		ball.y += ball_speed.y * deltaTime;
+
+		if (glfwGetTime() - last_limit_time >= 0.2)
+		{
+			rate_limit = false;
+		}
+
+		if (ball.isIntersecting(paddle_one) && !rate_limit)
+		{
+			rate_limit = true;
+			last_limit_time = glfwGetTime();
+			ball_speed.y = -ball_speed.y;
+			ball_speed.x += paddle_one_speed;
+			std::cout << "Rally: " << ++rally << '\n';
+		}
+
+		if (ball.isIntersecting(paddle_two) && !rate_limit)
+		{
+			rate_limit = true;
+			last_limit_time = glfwGetTime();
+			ball_speed.y = -ball_speed.y;
+			ball_speed.x += paddle_two_speed;
+			std::cout << "Rally: " << ++rally << '\n';
+		}
+
+		if (ball.y > 1.0f)
+		{
+			std::cout << "Green Won! Rally count: " << rally << '\n';
+		}
+
+		if (ball.y < 0.0f)
+		{
+			std::cout << "White Won! Rally count: " << rally << '\n';
+
+		}
+
+		///////////////////////////draw///////////////////////////////////////
+		paddle_one.draw();
+		paddle_two.draw();
+		ball.draw();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
-
 	}
 
 	glfwTerminate();
@@ -170,31 +222,43 @@ void processInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
-	float cameraSpeed = 6.0f * deltaTime;
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-	{
-		camera.pos += camera.front * cameraSpeed;
-	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-	{
-		camera.pos -= camera.front * cameraSpeed;
-	}
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 	{
-		camera.pos -= camera.right * cameraSpeed;
+		paddle_one.x -= 1.0f * deltaTime;
+		paddle_one_speed = -1.0f;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_RELEASE)
+	{
+		paddle_one_speed = 0.0f;
 	}
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 	{
-		
-		camera.pos += camera.right * cameraSpeed;
+		paddle_one.x += 1.0f * deltaTime;
+		paddle_one_speed = 1.0f;
 	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE)
 	{
-		camera.pos -= camera.up * cameraSpeed;
+		paddle_one_speed = 0.0f;
 	}
-	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+
+	if (glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS)
 	{
-		camera.pos += camera.up * cameraSpeed;
+		paddle_two.x -= 1.0f * deltaTime;
+		paddle_two_speed = -1.0f;
+	}
+	if (glfwGetKey(window, GLFW_KEY_J) == GLFW_RELEASE)
+	{
+		paddle_two_speed = 0.0f;
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+	{
+		paddle_two.x += 1.0f * deltaTime;
+		paddle_two_speed = 1.0f;
+	}
+	if (glfwGetKey(window, GLFW_KEY_L) == GLFW_RELEASE)
+	{
+		paddle_two_speed = 0.0f;
 	}
 }
 
@@ -209,34 +273,6 @@ void error_callback(int error_code, const char* error_message)
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	if (firstMouse)
-	{
-		lastMouseX = (float)xpos;
-		lastMouseY = (float)ypos;
-		firstMouse = false;
-	}
-	
-	float xoffset = (float)xpos - lastMouseX;
-	float yoffset = lastMouseY - (float)ypos;
-	lastMouseX = (float)xpos;
-	lastMouseY = (float)ypos;
-
-	float sensitivity = 0.03f;
-	xoffset *= sensitivity;
-	yoffset *= sensitivity;
-
-	camera.yaw += xoffset;
-	camera.pitch += yoffset;
-	if (camera.pitch > 89.0f)
-		camera.pitch = 89.0f;
-	if (camera.pitch < -89.0f)
-		camera.pitch = -89.0f;
-
-	camera.front.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-	camera.front.y = sin(glm::radians(camera.pitch));
-	camera.front.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-	camera.front = glm::normalize(camera.front);
-	camera.right = glm::normalize(glm::cross(camera.front, camera.up));
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
