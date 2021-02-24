@@ -44,6 +44,7 @@ float paddle_one_speed, paddle_two_speed;
 unsigned int rally = 0;
 bool rate_limit = false;
 double last_limit_time = 0.0;
+bool reset = false;
 
 int main()
 {
@@ -153,7 +154,16 @@ int main()
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.0f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
-
+		if (reset)
+		{
+			rally = 0;
+			std::cout << "----NEW RALLY----\n";
+			rate_limit = false;
+			ball.x = 0.5f;
+			ball.y = 0.5f;
+			ball_speed = glm::vec2(0.05f, (r2 * 0.5) + 0.2f);
+			reset = false;
+		}
 		/////////////////////////////////game logic//////////////////////////////
 		ball.x = std::clamp(ball.x, (ball.getWidth() / 2), 1.0f - (ball.getWidth() / 2));
 		if (ball.x >= 1.0f - (ball.getWidth() / 2) || ball.x <= (ball.getWidth() / 2))
@@ -174,6 +184,7 @@ int main()
 			rate_limit = true;
 			last_limit_time = glfwGetTime();
 			ball_speed.y = -ball_speed.y;
+			ball.y = 1.0f - (paddle_one.getHeight() + ball.getHeight());
 			ball_speed.x += paddle_one_speed;
 			std::cout << "Rally: " << ++rally << '\n';
 		}
@@ -183,19 +194,19 @@ int main()
 			rate_limit = true;
 			last_limit_time = glfwGetTime();
 			ball_speed.y = -ball_speed.y;
+			ball.y = (paddle_two.getHeight()+ ball.getHeight());
 			ball_speed.x += paddle_two_speed;
 			std::cout << "Rally: " << ++rally << '\n';
 		}
 
-		if (ball.y > 1.0f)
+		if (ball.y > 1.2f)
 		{
 			std::cout << "Green Won! Rally count: " << rally << '\n';
 		}
 
-		if (ball.y < 0.0f)
+		if (ball.y < -0.2f)
 		{
 			std::cout << "White Won! Rally count: " << rally << '\n';
-
 		}
 
 		///////////////////////////draw///////////////////////////////////////
@@ -264,6 +275,10 @@ void processInput(GLFWwindow* window)
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+	if (key == GLFW_KEY_0 && action == GLFW_PRESS)
+	{
+		reset = true;
+	}
 }
 
 void error_callback(int error_code, const char* error_message)
