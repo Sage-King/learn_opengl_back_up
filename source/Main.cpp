@@ -56,7 +56,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	GLFWwindow* window = glfwCreateWindow((int)SCREEN_WIDTH, (int)SCREEN_HEIGHT, "Sage Learning OpenGL", NULL, NULL);
-	glfwSetWindowPos(window, 400, 180);
+	glfwSetWindowPos(window, 800, 180);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -136,10 +136,10 @@ int main()
 		0.5f
 	);
 	srand(static_cast <unsigned> (time(0)));
-	float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 	float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-	glm::vec2 ball_speed = glm::vec2((r * 0.5) + 0.2f,(r2 * 0.5) + 0.2f);
+	glm::vec2 ball_speed = glm::vec2(0.05f,(r2 * 0.5) + 0.2f);
 	last_limit_time = glfwGetTime();
+	glfwFocusWindow(window);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////START FRAME RENDERING/////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
