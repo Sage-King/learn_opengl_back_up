@@ -198,4 +198,8 @@ void Shader::setMat3(const std::string& name, const glm::mat3& value)
 {
 	glUniformMatrix3fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, glm::value_ptr(value));
 }
+void Shader::setUnsignedInt(const std::string& name, const GLuint& value) const
+{
+	glUniform1ui(glGetUniformLocation(ID, name.c_str()), value);
+}
 

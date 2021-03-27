@@ -14,11 +14,13 @@
 #include <map>
 #include <random>
 #include <ctime>
+#include <algorithm>
 
 #include <Shader.h>
 #include <Camera.h>
-#include <quad.h>
+#include <Quad.h>
 #include <sage_net_common/message.h>
+#include <Circle.h>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -32,34 +34,20 @@ void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id, GLenum s
 		(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
 		type, severity, message);
 }
-void reset();
-void handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred);
+template <typename T>
+void println(T output);
+
 constexpr float SCREEN_WIDTH = 600;
 constexpr float SCREEN_HEIGHT = 600;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-Quad paddle_one, paddle_two, ball;
+glm::vec2 circle_one_pos(0.5f,0.5f);
+glm::vec2 circle_two_pos(0.0f);
+float num = 10.0f;
 
-glm::vec3 clear_color = glm::vec3(0.0f, 0.1f, 0.1f);
-float paddle_one_speed, paddle_two_speed;
-Game_State local_game_state;
-std::chrono::steady_clock::time_point send_rate_limit_last;
-
-boost::asio::io_context io_context;
-boost::array<Sage_Message, 1> receive_buffer;
-boost::asio::ip::udp::endpoint sender_endpoint;
-boost::system::error_code ec;
-boost::asio::ip::udp::socket our_socket(io_context);
-
-unsigned int rally = 0;
-bool rate_limit = false;
-double last_limit_time = 0.0;
-unsigned int player_number;
-bool connecting = true;
 glm::vec4 background_color(0.0f, 0.1f, 0.1f, 1.0f);
-
 
 int main()
 {
@@ -81,7 +69,8 @@ int main()
 	}
 
 	glfwMakeContextCurrent(window);
-	if (!gladLoadGL()) {
+	if (!gladLoadGL())
+	{
 		printf("Something went wrong!\n");
 		exit(-1);
 	}
@@ -102,7 +91,7 @@ int main()
 
 	if (window_icon_data)
 	{
- 
+
 		window_icon[0].width = window_icon_width;
 		window_icon[0].height = window_icon_height;
 		window_icon[0].pixels = window_icon_data;
@@ -127,46 +116,17 @@ int main()
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	////////////////////////////////////////////////////////////////INIT GAME///////////////////////////////////////////////////
-	std::string ip_address_input;
-	boost::asio::ip::udp::resolver resolver(io_context);
-	boost::asio::ip::udp::endpoint server_endpoint;
-	our_socket = boost::asio::ip::udp::socket(io_context);
 
-	/*std::cout << "Enter IP to connect to: ";
-	std::cin >> ip_address_input;*/
-	ip_address_input = "96.19.83.18";
-	server_endpoint = *resolver.resolve(boost::asio::ip::udp::v4(), ip_address_input.c_str(), "daytime").begin();
-	our_socket.open(boost::asio::ip::udp::v4());
-	our_socket.native_non_blocking(true);
-	our_socket.non_blocking(true);
+	/*std::vector<Sage::Circle> circle_vector;
+	for (int i = 0; i < 10; i++)
+	{
+		circle_vector.push_back(Sage::Circle(glm::vec4(1.0f,0.0f,0.1f * i,1.0f), glm::vec2((0.1f * i) + 0.05f, 0.0f), 0.1f));
+	}*/
 
-	paddle_two = Quad(
-		glm::vec3(0.0f, 1.0f, 0.0f), 
-		0.2f,
-		0.02f,
-		0.5f,
-		0.01f
-	);
+	Sage::Circle test_circle = Sage::Circle(glm::vec4(0.0f, 1.0f, 1.0f, 1.0f), glm::vec2(0.0f, 0.0f), 0.1f);
+	Sage::Circle test_circle_2 = Sage::Circle(glm::vec4(0.0f, 1.0f, 1.0f, 1.0f), glm::vec2(0.0f, 0.0f), 0.1f);
 
-	paddle_one = Quad(
-		glm::vec3(1.0f,1.0f,1.0f),
-		0.2f,
-		0.02f,
-		0.5f,
-		0.99f
-	);
-
-	ball = Quad(
-		glm::vec3(1.0f, 1.0f, 1.0f),
-		0.03f,
-		0.03f,
-		0.5f,
-		0.5f
-	);
-	glm::vec2 ball_speed = glm::vec2(0.00f,0.0f);
-	last_limit_time = glfwGetTime();
-	glfwFocusWindow(window);
+	constexpr float gravity = 0.1f;
 	lastFrame = (float)glfwGetTime();
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////START FRAME RENDERING/////////////////////////////////////////////////
@@ -179,207 +139,31 @@ int main()
 
 		processInput(window);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClearColor(background_color.x, background_color.y, background_color.z, background_color.w);
+		glClearColor(background_color.x, background_color.y , background_color.z, background_color.w);
 		glClear(GL_COLOR_BUFFER_BIT);
-		///////////////////////////////networking///////////////////////////////
 
-		if (connecting)
+		/*for (std::vector<Sage::Circle>::iterator iter = circle_vector.begin();
+			iter != circle_vector.end();
+			iter++)
 		{
-			boost::array<Sage_Message, 1> connect_request;
-			connect_request[0].message_type = CLIENT_CONNECT;
-			our_socket.send_to(boost::asio::buffer(connect_request), server_endpoint, 0, ec);
-			connecting = false;
-		}
-		our_socket.receive_from(boost::asio::buffer(receive_buffer), sender_endpoint,0, ec);
-
-		if (!(ec == boost::asio::error::would_block))
-		{
-			switch (receive_buffer[0].message_type)
-			{
-			case CLIENT_TYPE:
-				memcpy(&player_number, &receive_buffer[0].payload, sizeof(player_number));
-				std::cout << "Waiting for other player to connect...\n";
-				break;
-			case GAME_STARTED:
-				std::cout << "Game started!\n";
-				background_color = glm::vec4(0.0f, 0.1f, 0.1f, 1.0f);
-				local_game_state.game_started = true;
-				break;
-			case GAME_STATE:
-				memcpy(&local_game_state, &receive_buffer[0].payload, sizeof(Game_State));
-				ball.x = local_game_state.ball_x;
-				ball.y = local_game_state.ball_y;
-				paddle_one.x = local_game_state.paddle_one_x;
-				paddle_two.x = local_game_state.paddle_two_x;
-				if (player_number == 1)
-					paddle_two_speed = local_game_state.paddle_two_vel;
-				if (player_number == 2)
-					paddle_one_speed = local_game_state.paddle_one_vel;
-				ball_speed.x = local_game_state.ball_x_vel;
-				ball_speed.y = local_game_state.ball_y_vel;
-
-				boost::array<Sage_Message, 1> player_input;
-				player_input[0].message_type = PLAYER_INPUT;
-				memcpy(&player_input[0].payload[0], &player_number, sizeof(player_number));
-				if (player_number == 1)
-				{
-					memcpy(&player_input[0].payload[sizeof(player_number)], &paddle_one_speed, sizeof(paddle_one_speed));
-				}
-				if (player_number == 2)
-				{
-					memcpy(&player_input[0].payload[sizeof(player_number)], &paddle_two_speed, sizeof(paddle_two_speed));
-				}
-				our_socket.send_to(boost::asio::buffer(player_input), server_endpoint, 0, ec);
-
-				break;
-			case GAME_ENDED:
-				memcpy(&local_game_state, &receive_buffer[0].payload[0], sizeof(Game_State));
-				reset();
-				break;
-			default:
-				break;
-			}
-		}
-		///////////////////////////////////////CLIENT PREDICTION///////////////////////////////
-		//if (local_game_state.game_started)
-		//{
-		//	auto time_since_last_limit = std::chrono::steady_clock::now() - send_rate_limit_last;
-		//	if (time_since_last_limit >= std::chrono::milliseconds(100))
-		//	{
-		//		boost::array<Sage_Message, 1> player_input;
-		//		player_input[0].message_type = PLAYER_INPUT;
-		//		memcpy(&player_input[0].payload[0], &player_number, sizeof(player_number));
-		//		if (player_number == 1)
-		//		{
-		//			memcpy(&player_input[0].payload[sizeof(player_number)], &paddle_one_speed, sizeof(paddle_one_speed));
-		//		}
-		//		if (player_number == 2)
-		//		{
-		//			memcpy(&player_input[0].payload[sizeof(player_number)], &paddle_two_speed, sizeof(paddle_two_speed));
-		//		}
-		//		our_socket.send_to(boost::asio::buffer(player_input), server_endpoint, 0, ec);
-		//		send_rate_limit_last = std::chrono::steady_clock::now();
-		//	}
-		//}
-		//boost::array<Sage_Message, 1> send_buf;
-		//send_buf[0].message_type = STATE_QUERY;
-		//if (player_number == 1)
-		//{
-		//	memcpy(&send_buf[0].payload, &paddle_one_speed, sizeof(paddle_one_speed));
-		//	memcpy(&send_buf[0].payload[sizeof(paddle_one_speed)], &player_number, sizeof(player_number));
-		//}
-		//if (player_number == 2)
-		//{
-		//	memcpy(&send_buf[0].payload, &paddle_two_speed, sizeof(paddle_two_speed));
-		//	memcpy(&send_buf[0].payload[sizeof(paddle_two_speed)], &player_number, sizeof(player_number));
-		//}
-		//boost::system::error_code ec;
-		//our_socket.send_to(boost::asio::buffer(send_buf), server_endpoint, 0, ec);
-
-		//size_t len;
-		//if (ec == boost::asio::error::would_block)
-		//	goto START_DRAWING;
-		//
-
-		//boost::array<Sage_Message, 1> recv_buf;
-		//len = socket.receive_from(boost::asio::buffer(recv_buf), this_client_endpoint, 0, ec); //i think this is server_endpoint
-
-		//if (ec == boost::asio::error::would_block)
-		//	goto START_DRAWING;
-
-		//if (recv_buf[0].message_type == STATE_RESPONSE)
-		//{
-		//	memcpy(&paddle_one.x, &recv_buf[0].payload[0 * sizeof(float)], sizeof(float));
-		//	memcpy(&paddle_two.x, &recv_buf[0].payload[1 * sizeof(float)], sizeof(float));
-		//	memcpy(&ball.x,		  &recv_buf[0].payload[2 * sizeof(float)], sizeof(float));
-		//	memcpy(&ball.y,		  &recv_buf[0].payload[3 * sizeof(float)], sizeof(float));
-		//}
-		//if (recv_buf[0].message_type == GAME_OVER)
-		//{
-		//	bool green_won = false, white_won = false;
-		//	memcpy(&green_won, &recv_buf[0].payload, sizeof(green_won));
-		//	memcpy(&white_won, &recv_buf[0].payload[sizeof(green_won)], sizeof(white_won));
-		//	if (green_won)
-		//	{
-		//		std::cout << "GREEN WON!\n";
-		//		system("pause");
-		//		return 0;
-		//	}
-		//	else if (white_won)
-		//	{
-		//		std::cout << "WHITE WON!\n";
-		//		system("pause");
-		//		return 0;
-		//	}
-		//}
-		//
-		/////////////////////////////////game logic//////////////////////////////
-		//network side now
- 		/*if (reset)
-		{
-			rally = 0;
-			std::cout << "----NEW RALLY----\n";
-			rate_limit = false;
-			ball.x = 0.5f;
-			ball.y = 0.5f;
-			ball_speed = glm::vec2(0.05f, (r2 * 0.5) + 0.2f);
-			reset = false;
-		}
-		ball.x = std::clamp(ball.x, (ball.getWidth() / 2), 1.0f - (ball.getWidth() / 2));
-		if (ball.x >= 1.0f - (ball.getWidth() / 2) || ball.x <= (ball.getWidth() / 2))
-		{
-			ball_speed.x = -ball_speed.x;
-		}
-		ball_speed.x = std::clamp(ball_speed.x, -0.9f, 0.9f);
-		ball.x += ball_speed.x * deltaTime;
-		ball.y += ball_speed.y * deltaTime;
-
-		if (glfwGetTime() - last_limit_time >= 0.2)
-		{
-			rate_limit = false;
-		}
-
-		if (ball.isIntersecting(paddle_one) && !rate_limit)
-		{
-			rate_limit = true;
-			last_limit_time = glfwGetTime();
-			ball_speed.y = -ball_speed.y;
-			ball.y = 1.0f - (paddle_one.getHeight() + ball.getHeight());
-			ball_speed.x += paddle_one_speed;
-			std::cout << "Rally: " << ++rally << '\n';
-		}
-
-		if (ball.isIntersecting(paddle_two) && !rate_limit)
-		{
-			rate_limit = true;
-			last_limit_time = glfwGetTime();
-			ball_speed.y = -ball_speed.y;
-			ball.y = (paddle_two.getHeight()+ ball.getHeight());
-			ball_speed.x += paddle_two_speed;
-			std::cout << "Rally: " << ++rally << '\n';
-		}
-
-		if (ball.y > 1.2f)
-		{
-			std::cout << "Green Won! Rally count: " << rally << '\n';
-		}
-
-		if (ball.y < -0.2f)
-		{
-			std::cout << "White Won! Rally count: " << rally << '\n';
+			glm::vec2 temp_pos = iter->get_pos(); 
+			temp_pos.y += gravity * deltaTime;
+			iter->set_pos(temp_pos);
+			iter->draw();
 		}*/
+		test_circle.set_pos_clamp_to_window(circle_one_pos);
+		test_circle.set_num_of_points(num);
+		test_circle.draw();
 
-		///////////////////////////draw///////////////////////////////////////
-		paddle_one.draw();
-		paddle_two.draw();
-		ball.draw();
+		float second_radius = test_circle_2.get_radius();
+		circle_two_pos.x = std::clamp(circle_two_pos.x, 0.0f + second_radius, 1.0f - second_radius);
+		circle_two_pos.y = std::clamp(circle_two_pos.y, 0.0f + second_radius, 1.0f - second_radius);
+		test_circle_2.set_pos(circle_two_pos);
+		//test_circle_2.draw();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-	boost::array<Sage_Message, 1> disconnect;
-	disconnect[0].message_type = PLAYER_DISCONNECT;
-	our_socket.send_to(boost::asio::buffer(disconnect), server_endpoint);
 	glfwTerminate();
 
 	return 0;
@@ -396,49 +180,32 @@ void processInput(GLFWwindow* window)
 		glfwSetWindowShouldClose(window, true);
 
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-	{
-		//paddle_one.x -= 1.0f * deltaTime;
-		if (player_number == 1)
-		{
-			paddle_one_speed = -1.0f;
-		}
-		if (player_number == 2)
-		{
-			paddle_two_speed = -1.0f;
-		}
-	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_RELEASE)
-	{
-		if (player_number == 1)
-		{
-			paddle_one_speed = 0.0f;
-		}
-		if (player_number == 2)
-		{
-			paddle_two_speed = 0.0f;
-		}
-	}
+		circle_one_pos.x -= 0.1f * deltaTime;
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-	{
-		//paddle_one.x += 1.0f * deltaTime;
-		if (player_number == 1)
-		{
-			paddle_one_speed = 1.0f;
-		}
-		if (player_number == 2)
-		{
-			paddle_two_speed = 1.0f;
-		}
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_RELEASE)
-	{
-		//paddle_one_speed = 0.0f;
-	}
+		circle_one_pos.x += 0.1f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		circle_one_pos.y -= 0.1f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		circle_one_pos.y += 0.1f * deltaTime;
+
+
+	if (glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS)
+		circle_two_pos.x -= 0.1f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+		circle_two_pos.x += 0.1f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS)
+		circle_two_pos.y -= 0.1f * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_K) == GLFW_PRESS)
+		circle_two_pos.y += 0.1f * deltaTime;
+
+	if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS)
+		num += 1.0f;
+	if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS)
+		num -= 1.0f;
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-
 }
 
 void error_callback(int error_code, const char* error_message)
@@ -453,25 +220,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 }
-
-void reset()
+template <typename T>
+void println(T output)
 {
-	if (!local_game_state.green_won && !local_game_state.white_won)
-	{
-		std::cout << "SOMEONE DISCONNECTED\n";
-	}else if (local_game_state.green_won)
-	{
-		background_color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-		std::cout << "GREEN WON\n";
-	}else if (local_game_state.white_won)
-	{
-		background_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-		std::cout << "WHITE WON\n";
-	}
-	connecting = true;
-}
-
-void handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred)
-{
- 	
+	std::cout << output << '\n';
 }

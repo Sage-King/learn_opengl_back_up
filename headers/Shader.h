@@ -30,6 +30,7 @@ public:
 	void setVec4(const std::string& name, const glm::vec4& value) const;
 	void setMat4(const std::string& name, const glm::mat4& value);
 	void setMat3(const std::string& name, const glm::mat3& value);
+	void setUnsignedInt(const std::string& name, const GLuint& value) const;
 };
 
 #endif 

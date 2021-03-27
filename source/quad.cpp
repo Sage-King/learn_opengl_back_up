@@ -1,107 +1,110 @@
-#include "quad.h"
+#include "Quad.h"
 #include <algorithm>
-
-Quad::Quad(glm::vec3 color, float width, float height, float in_x = 0.0f, float in_y = 0.0f) 
-   :width(width),
-	height(height),
-	color(color),
-	x(in_x),
-	y(in_y)
+namespace Sage
 {
-	shader = Shader("shaders\\quad.vs", "shaders\\quad.fs");
-
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	unsigned int vbo;
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-	float verts[] =
+	Quad::Quad(glm::vec3 color, float width, float height, float in_x = 0.0f, float in_y = 0.0f) 
+	   :width(width),
+		height(height),
+		color(color),
+		x(in_x),
+		y(in_y)
 	{
-		-1.0f, 1.0f,
-		 1.0f, 1.0f,
-		 1.0f,-1.0f,
+		shader = Shader("shaders\\quad.vs", "shaders\\quad.fs");
 
-		-1.0f, 1.0f,
-		 1.0f,-1.0f,
-		-1.0f,-1.0f
-	};
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
 
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+		unsigned int vbo;
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+		float verts[] =
+		{
+			-1.0f, 1.0f,
+			 1.0f, 1.0f,
+			 1.0f,-1.0f,
 
-	glDeleteBuffers(1, &vbo);
-}
+			-1.0f, 1.0f,
+			 1.0f,-1.0f,
+			-1.0f,-1.0f
+		};
+		glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
 
-void Quad::draw()
-{
-	shader.use();
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 
-	glm::mat4 scale = glm::mat4(1.0f);
-	scale = glm::scale(scale, glm::vec3(width, height, 0.0f));
-	shader.setMat4("scale", scale);
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	glm::mat4 translate = glm::mat4(1.0f);
-	x = std::clamp(x, (width/2), 1.0f - (width/2));
-	float temp_x = (x * 2) - 1;
-	float temp_y = (y * 2) - 1;
-	translate = glm::translate(translate, glm::vec3(temp_x, -temp_y, 0.0f));
-	shader.setMat4("translate", translate);
+		glDeleteBuffers(1, &vbo);
+	}
 
-	shader.setVec3("color", color);
+	void Quad::draw()
+	{
+		shader.use();
 
-	glBindVertexArray(vao);
+		glm::mat4 scale = glm::mat4(1.0f);
+		scale = glm::scale(scale, glm::vec3(width, height, 0.0f));
+		shader.setMat4("scale", scale);
 
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-}
+		glm::mat4 translate = glm::mat4(1.0f);
+		x = std::clamp(x, (width/2), 1.0f - (width/2));
+		float temp_x = (x * 2) - 1;
+		float temp_y = (y * 2) - 1;
+		translate = glm::translate(translate, glm::vec3(temp_x, -temp_y, 0.0f));
+		shader.setMat4("translate", translate);
 
-bool Quad::isIntersecting(Quad in_quad)
-{
-	float x_edge = x + (width / 2);
-	float neg_x_edge = x - (width / 2);
-	float y_edge = y + (height / 2);
-	float neg_y_edge = y - (height / 2);
+		shader.setVec3("color", color);
 
-	float in_x_edge = in_quad.x + (in_quad.width / 2);
-	float in_neg_x_edge = in_quad.x - (in_quad.width / 2);
-	float in_y_edge = in_quad.y + (in_quad.height / 2);
-	float in_neg_y_edge = in_quad.y - (in_quad.height / 2);
+		glBindVertexArray(vao);
 
-	return (neg_x_edge < in_x_edge && x_edge > in_neg_x_edge && 
-			in_neg_y_edge < y_edge && in_y_edge > neg_y_edge);
-}
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glBindVertexArray(0);
+	}
 
-float Quad::getWidth()
-{
-	return width;
-}
+	bool Quad::isIntersecting(Quad in_quad)
+	{
+		float x_edge = x + (width / 2);
+		float neg_x_edge = x - (width / 2);
+		float y_edge = y + (height / 2);
+		float neg_y_edge = y - (height / 2);
 
-void Quad::setWidth(float in_width)
-{
-	width = in_width;
-}
+		float in_x_edge = in_quad.x + (in_quad.width / 2);
+		float in_neg_x_edge = in_quad.x - (in_quad.width / 2);
+		float in_y_edge = in_quad.y + (in_quad.height / 2);
+		float in_neg_y_edge = in_quad.y - (in_quad.height / 2);
 
-float Quad::getHeight()
-{
-	return height;
-}
+		return (neg_x_edge < in_x_edge && x_edge > in_neg_x_edge && 
+				in_neg_y_edge < y_edge && in_y_edge > neg_y_edge);
+	}
 
-void Quad::setHeight(float in_height)
-{
-	height = in_height;
-}
+	float Quad::getWidth()
+	{
+		return width;
+	}
 
-glm::vec3 Quad::getColor()
-{
-	return color;
-}
+	void Quad::setWidth(float in_width)
+	{
+		width = in_width;
+	}
 
-void Quad::setColor(glm::vec3 in_color)
-{
-	color = in_color;
+	float Quad::getHeight()
+	{
+		return height;
+	}
+
+	void Quad::setHeight(float in_height)
+	{
+		height = in_height;
+	}
+
+	glm::vec3 Quad::getColor()
+	{
+		return color;
+	}
+
+	void Quad::setColor(glm::vec3 in_color)
+	{
+		color = in_color;
+	}
 }
