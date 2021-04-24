@@ -26,9 +26,7 @@ namespace Sage
 		bool is_intersecting(const Circle& in_circle);
 		void set_color(const glm::vec4& in_color);
 		void set_radius(const float& in_radius);
-		void set_radius_clamp_to_window(const float& in_radius);
 		void set_pos(const glm::vec2& in_pos);
-		void set_pos_clamp_to_window(const glm::vec2& in_pos);
 		void set_num_of_points(const float& in_num);
 		glm::vec2 get_pos();
 		float get_radius();
